@@ -11,7 +11,6 @@ app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ddlv3rx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
-// console.log(uri);
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -23,35 +22,21 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
+    // Connect the client to the server
     // await client.connect();
 
     const galleryCollection = client
       .db("dbUploadGallery")
       .collection("dbGallery");
 
-    // const extraCraftCollection = client
-    //   .db("dbArtCraft")
-    //   .collection("extraCrafItem");
+    // Get all images
     app.get("/galleryImage", async (req, res) => {
       const cursor = galleryCollection.find();
       const result = await cursor.toArray();
       res.send(result);
     });
-    // app.get("/extraCraft", async (req, res) => {
-    //   const cursor = extraCraftCollection.find();
-    //   const result = await cursor.toArray();
-    //   res.send(result);
-    //   console.log(result);
-    // });
-    // update server
 
-    // app.get("/craft/:id", async (req, res) => {
-    //   const id = req.params.id;
-    //   const query = { _id: new ObjectId(id) };
-    //   const result = await artCraftCollection.findOne(query);
-    //   res.send(result);
-    // });
+    // Upload a new image
     app.post("/galleryI", async (req, res) => {
       const upload = req.body;
       console.log(upload);
@@ -59,56 +44,53 @@ async function run() {
       res.send(result);
       console.log(result);
     });
-    // app.get("/craft/:id", async (req, res) => {
-    //   console.log(req.params.id);
-    //   const id = req.params.id;
-    //   const query = { _id: new ObjectId(id) };
-    //   const result = await artCraftCollection
-    //     .find({ _id: req.params.id })
-    //     .toArray();
-    //   res.send(result);
-    // });
-    // app.get("/artCraft/:email", async (req, res) => {
-    //   console.log(req.params.email);
-    //   const result = await artCraftCollection
-    //     .find({ email: req.params.email })
-    //     .toArray();
-    //   res.send(result);
-    // });
-    // app.get("/singleCraft/:id", async (req, res) => {
-    //   console.log(req.params.id);
-    //   const result = await artCraftCollection.findOne({
-    //     _id: new ObjectId(req.params.id),
-    //   });
-    //   res.send(result);
-    // });
 
-    // app.put("/updateCraft/:id", async (req, res) => {
-    //   console.log(req.params.id);
-    //   const query = { _id: new ObjectId(req.params.id) };
-    //   const craftData = {
-    //     $set: {
-    //       image: req.body.image,
-    //     },
-    //   };
-    //   const result = await artCraftCollection.updateOne(query, craftData);
-    //   console.log(result);
-    //   res.send(result);
-    // });
-    // app.delete('/craftDeletes/:id', async(req, res) =>{
+    // Update image order
+    app.patch("/updateImageOrder", async (req, res) => {
+      const reorderedImages = req.body.reorderedImages; // Array of images with updated order
+      try {
+        // Loop through each image and update its order in the database
+        const updatePromises = reorderedImages.map((image, index) =>
+          galleryCollection.updateOne(
+            { _id: ObjectId(image._id) }, // Find the image by _id
+            { $set: { order: index + 1 } } // Update its order field
+          )
+        );
 
-    //   const result = await artCraftCollection.deleteOne(query)
-    //   res.send(result)
-    // })
-    // app.delete("/craftDelete/:id", async (req, res) => {
-    //   const result = await artCraftCollection.deleteOne({
-    //     _id: new ObjectId(req.params.id),
-    //   });
-    //   console.log(result);
-    //   res.send(result);
-    // });
-    // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
+        // Execute all update operations
+        await Promise.all(updatePromises);
+
+        res.status(200).send({ message: "Image order updated successfully" });
+      } catch (error) {
+        console.error("Error updating image order:", error);
+        res.status(500).send("Server Error");
+      }
+    });
+
+    // Delete multiple images by IDs
+    app.delete("/galleryImage", async (req, res) => {
+      const ids = req.body.ids; // Array of image IDs to delete
+
+      try {
+        // Convert array of string IDs to ObjectId
+        const objectIds = ids.map((id) => new ObjectId(id));
+
+        // Delete all images that match the given IDs
+        const result = await galleryCollection.deleteMany({
+          _id: { $in: objectIds },
+        });
+
+        if (result.deletedCount > 0) {
+          res.status(200).send({ message: "Images deleted successfully" });
+        } else {
+          res.status(404).send({ message: "No images found to delete" });
+        }
+      } catch (error) {
+        console.error("Error deleting images:", error);
+        res.status(500).send("Server Error");
+      }
+    });
+
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
@@ -120,8 +102,9 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("Gallery making to server");
+  res.send("Gallery server is up and running!");
 });
+
 app.listen(port, () => {
-  console.log(`Gallery server is running : ${port}`);
+  console.log(`Gallery server is running on port: ${port}`);
 });
